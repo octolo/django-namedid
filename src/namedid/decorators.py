@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
+from typing import Callable, TypeVar
 
 from .fields import NamedIDField
 
@@ -16,7 +16,7 @@ def add_namedid(**fields_config: list[str]) -> Callable[[type[T]], type[T]]:
                 source_fields=source_fields,
                 max_length=255,
             )
-            cls.add_to_class(field_name, field)
+            cls.add_to_class(field_name, field)  # type: ignore[attr-defined]
         return cls
 
     return decorator
