@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date, datetime
 from typing import Any
 
@@ -109,6 +110,11 @@ class NamedIDField(models.CharField):
         if isinstance(value, bool):
             return "1" if value else "0"
         string_value = str(value)
+        string_value = "".join(
+            c
+            for c in unicodedata.normalize("NFD", string_value)
+            if unicodedata.category(c) != "Mn"
+        )
         string_value = string_value.lower()
         string_value = string_value.replace(" ", self.separator)
         string_value = re.sub(r'[^\w\-]', '', string_value)
