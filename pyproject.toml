@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-namedid"
-version = "0.2.1"
+version = "0.2.2"
 description = "Django field that combines multiple fields into a unique identifier with collision handling"
 readme = "README.md"
 authors = [{ name = "Octolo", email = "dev@octolo.tech" }]

@@ -6,7 +6,11 @@ from datetime import date, datetime
 from typing import Any
 
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
+
+
+_NON_WORD_RE = re.compile(r'[^\w\-]')
 
 
 class NamedIDField(models.CharField):
@@ -21,6 +25,7 @@ class NamedIDField(models.CharField):
     ) -> None:
         self.source_fields = source_fields
         self.separator = separator
+        self._sep_collapse_re = re.compile(rf'{re.escape(separator)}+')
         kwargs["editable"] = False
         if "blank" not in kwargs:
             kwargs["blank"] = False
@@ -42,85 +47,90 @@ class NamedIDField(models.CharField):
         return queryset
 
     def pre_save(self, model_instance: Any, add: bool) -> str:
+        value = self._compute_value(model_instance, add)
+        setattr(model_instance, self.attname, value)
+        return value
+
+    def _compute_value(self, model_instance: Any, add: bool) -> str:
         base_value = self._generate_base_value(model_instance)
         if not base_value:
+            # Source fields unresolvable (e.g. historical mirror model without
+            # the original properties): preserve the already-computed value.
+            existing = getattr(model_instance, self.attname, None)
+            if existing:
+                return existing
             raise ValueError(
                 _("Cannot generate named_id: all source fields %(fields)s are None or empty")
                 % {"fields": self.source_fields}
             )
 
+        if self._unique_scope is None and not self.unique:
+            return base_value
+
+        return self._find_free_value(model_instance, base_value, add)
+
+    def _find_free_value(self, model_instance: Any, base_value: str, add: bool) -> str:
+        """Return ``base_value`` or ``base_value<sep>N`` such that no row collides.
+
+        Performs a single query that fetches ``base_value`` and any
+        ``base_value<sep>...`` row, then picks the lowest free counter
+        in memory.
+        """
         field_name = self.attname
         model_class = model_instance.__class__
+        prefix = f"{base_value}{self.separator}"
 
-        if self._unique_scope is not None:
-            # Uniqueness scoped by fields: add -1, -2... within that scope
-            query = model_class.objects.filter(**{field_name: base_value})
-            query = self._scope_filter(model_instance, query)
-            if not add and hasattr(model_instance, "pk") and model_instance.pk:
-                query = query.exclude(pk=model_instance.pk)
+        query = model_class.objects.filter(
+            Q(**{field_name: base_value})
+            | Q(**{f"{field_name}__startswith": prefix})
+        )
+        query = self._scope_filter(model_instance, query)
+        if not add and model_instance.pk:
+            query = query.exclude(pk=model_instance.pk)
 
-            if not query.exists():
-                return base_value
-
-            counter = 1
-            while True:
-                candidate = f"{base_value}{self.separator}{counter}"
-                query = model_class.objects.filter(**{field_name: candidate})
-                query = self._scope_filter(model_instance, query)
-                if not add and hasattr(model_instance, "pk") and model_instance.pk:
-                    query = query.exclude(pk=model_instance.pk)
-                if not query.exists():
-                    return candidate
-                counter += 1
-        elif self.unique:
-            # Global uniqueness
-            query = model_class.objects.filter(**{field_name: base_value})
-            if not add and hasattr(model_instance, "pk") and model_instance.pk:
-                query = query.exclude(pk=model_instance.pk)
-
-            if not query.exists():
-                return base_value
-
-            counter = 1
-            while True:
-                candidate = f"{base_value}{self.separator}{counter}"
-                query = model_class.objects.filter(**{field_name: candidate})
-                if not add and hasattr(model_instance, "pk") and model_instance.pk:
-                    query = query.exclude(pk=model_instance.pk)
-                if not query.exists():
-                    return candidate
-                counter += 1
-        else:
+        taken = set(query.values_list(field_name, flat=True))
+        if base_value not in taken:
             return base_value
+
+        counter = 1
+        while True:
+            candidate = f"{prefix}{counter}"
+            if candidate not in taken:
+                return candidate
+            counter += 1
+
+    def _resolve_field(self, instance: Any, path: str) -> Any:
+        """Resolve a dot-separated attribute path starting from *instance*."""
+        obj = instance
+        for part in path.split('.'):
+            if obj is None:
+                return None
+            obj = getattr(obj, part, None)
+        return obj
 
     def _generate_base_value(self, model_instance: Any) -> str:
         values = []
         for field_name in self.source_fields:
-            value = getattr(model_instance, field_name, None)
+            value = self._resolve_field(model_instance, field_name)
             if value is not None:
-                formatted_value = self._format_value(value)
-                values.append(str(formatted_value))
+                values.append(self._format_value(value))
         return self.separator.join(values)
 
     def _format_value(self, value: Any) -> str:
+        if isinstance(value, bool):
+            return "1" if value else "0"
         if isinstance(value, (date, datetime)):
             return value.strftime("%Y%m%d")
         if isinstance(value, (int, float)):
             return str(value)
-        if isinstance(value, bool):
-            return "1" if value else "0"
-        string_value = str(value)
+        string_value = unicodedata.normalize("NFD", str(value))
         string_value = "".join(
-            c
-            for c in unicodedata.normalize("NFD", string_value)
-            if unicodedata.category(c) != "Mn"
+            c for c in string_value if unicodedata.category(c) != "Mn"
         )
-        string_value = string_value.lower()
-        string_value = string_value.replace(" ", self.separator)
-        string_value = re.sub(r'[^\w\-]', '', string_value)
-        string_value = re.sub(rf'{re.escape(self.separator)}+', self.separator, string_value)
-        string_value = string_value.strip(self.separator)
-        return string_value
+        string_value = string_value.lower().replace(" ", self.separator)
+        string_value = _NON_WORD_RE.sub('', string_value)
+        string_value = self._sep_collapse_re.sub(self.separator, string_value)
+        return string_value.strip(self.separator)
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
