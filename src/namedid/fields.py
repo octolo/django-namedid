@@ -67,6 +67,13 @@ class NamedIDField(models.CharField):
         if self._unique_scope is None and not self.unique:
             return base_value
 
+        # Opt-in escape hatch for trusted bulk imports / migrations that already
+        # guarantee uniqueness within the scope: skip the collision-resolution
+        # query (one SELECT per row otherwise). Setting the attribute on the
+        # instance is enough; unknown to older releases, so it degrades safely.
+        if getattr(model_instance, 'namedid_skip_uniqueness_check', False):
+            return base_value
+
         return self._find_free_value(model_instance, base_value, add)
 
     def _find_free_value(self, model_instance: Any, base_value: str, add: bool) -> str:
