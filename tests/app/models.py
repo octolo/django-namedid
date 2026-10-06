@@ -12,6 +12,11 @@ class Product(models.Model):
         source_fields=["name", "code", "created_date"],
         max_length=200,
     )
+    named_id_custom = NamedIDField(
+        source_fields=["name", "code", "created_date"],
+        generator="tests.generators.custom_namedid",
+        max_length=200,
+    )
 
     class Meta:
         verbose_name = "Product"

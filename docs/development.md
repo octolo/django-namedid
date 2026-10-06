@@ -42,7 +42,7 @@
 ### Field Development
 
 - **Field properties**: NamedIDField must always be unique, required, and read-only
-- **Value generation**: Values are generated in `pre_save()` method
+- **Value generation**: Values are generated in `pre_save()` via `generate_namedid`, or a custom `generator`
 - **Collision handling**: Collisions are handled with numeric suffixes
 - **Type formatting**: Source fields are properly formatted (dates, numbers, booleans)
 

@@ -8,8 +8,9 @@ Django NamedID follows a standard Python package structure with source code in `
 django-namedid/
 ├── src/
 │   └── namedid/              # Main package directory
-│       ├── __init__.py      # Package exports (NamedIDField, add_namedid)
+│       ├── __init__.py      # Package exports (NamedIDField, add_namedid, generate_namedid)
 │       ├── fields.py        # NamedIDField class
+│       ├── generators.py    # Default named-id generator
 │       └── decorators.py    # add_namedid decorator
 ├── tests/                   # Test suite
 │   ├── settings.py          # Django test settings
@@ -37,6 +38,7 @@ django-namedid/
 The `fields.py` module provides:
 
 - **`NamedIDField`**: Main field class that combines multiple source fields into a unique identifier
+- **`generate_namedid`**: Default generator. Replace it per field with `generator="path.to.generator"`
 
 ### Decorator Organization
 
@@ -49,4 +51,5 @@ The `decorators.py` module provides:
 The public API is defined in `src/namedid/__init__.py`:
 
 - **Fields**: `NamedIDField`
+- **Generators**: `generate_namedid`
 - **Decorators**: `add_namedid`

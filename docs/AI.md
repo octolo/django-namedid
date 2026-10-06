@@ -78,6 +78,7 @@ These rules must always be followed.
 ### Available Components
 
 - `NamedIDField`: Main field class that combines multiple source fields
+- `generate_namedid`: Default generator `(instance, source_fields, separator) -> str`
 - `add_namedid`: Decorator to automatically add NamedIDField instances to models
 
 ---
@@ -98,6 +99,7 @@ django-namedid/
 ├── src/namedid/            # Main package
 │   ├── __init__.py         # Package exports
 │   ├── fields.py           # NamedIDField class
+│   ├── generators.py       # generate_namedid
 │   └── decorators.py       # add_namedid decorator
 ├── tests/                  # Test suite
 ├── docs/                   # Documentation
@@ -109,6 +111,7 @@ django-namedid/
 ### Key Directories
 
 - `src/namedid/fields.py`: NamedIDField class
+- `src/namedid/generators.py`: default named-id generator
 - `src/namedid/decorators.py`: add_namedid decorator
 - `tests/`: All tests using pytest
 
@@ -213,6 +216,8 @@ class MyModel(models.Model):
 ### Value Generation
 
 - Values are generated in `pre_save()` method
+- The base value is produced by `generate_namedid`, or by `generator="path.to.callable"`
+- Custom generators use `(instance, source_fields, separator) -> str`
 - Collisions are handled with numeric suffixes
 - Source fields are properly formatted (dates, numbers, etc.)
 

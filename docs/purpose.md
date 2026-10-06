@@ -16,6 +16,7 @@ The library enables you to:
    - Always unique and required
    - Read-only (cannot be edited)
    - Handles collisions automatically
+   - Optional `generator` replaces the default base-value function
 
 3. **Decorator support**:
    - Use `@add_namedid()` decorator to automatically add multiple NamedIDField fields
@@ -26,6 +27,7 @@ The library enables you to:
 The library provides:
 
 - **`NamedIDField`**: A Django CharField that combines multiple source fields
+- **`generate_namedid`**: Default function that builds the base identifier
 - **`add_namedid`**: A decorator to automatically add NamedIDField instances to models
 - **Collision handling**: Automatic suffix generation when values already exist
 

@@ -19,7 +19,6 @@ pip install django-namedid
 ```python
 from django.db import models
 from namedid import NamedIDField
-from datetime import date
 
 class Product(models.Model):
     name = models.CharField(max_length=100)
@@ -31,6 +30,29 @@ class Product(models.Model):
         max_length=200,
     )
 ```
+
+### Custom generator
+
+The base value is built by `generate_namedid(instance, source_fields, separator)`. Pass `generator` to replace that function. It must use the same signature and return a string. Collision suffixes are still applied by the field.
+
+```python
+# myapp/generators.py
+from namedid import generate_namedid
+
+def custom_namedid(instance, source_fields, separator):
+    base = generate_namedid(instance, source_fields, separator)
+    return f"org{separator}{base}" if base else base
+```
+
+```python
+named_id = NamedIDField(
+    source_fields=["name"],
+    generator="myapp.generators.custom_namedid",
+    max_length=200,
+)
+```
+
+`generator` also accepts the callable itself. A dotted path is the form migrations can store unchanged.
 
 ### Using the decorator
 

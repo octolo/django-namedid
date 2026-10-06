@@ -9,8 +9,10 @@ except PackageNotFoundError:
 
 from .decorators import add_namedid
 from .fields import NamedIDField
+from .generators import generate_namedid
 
 __all__ = [
     "NamedIDField",
     "add_namedid",
+    "generate_namedid",
 ]
