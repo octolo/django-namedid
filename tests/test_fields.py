@@ -8,7 +8,6 @@ import pytest
 
 from namedid import generate_namedid
 from namedid.fields import NamedIDField
-
 from tests.app.models import Article, Product
 from tests.generators import uppercase_name
 
@@ -100,6 +99,64 @@ def test_resave_keeps_collision_suffix() -> None:
     duplicate.save()
     duplicate.refresh_from_db()
     assert duplicate.named_id == "hello-1"
+
+
+@pytest.mark.django_db
+def test_long_collision_suffixes_fit_and_remain_stable(monkeypatch) -> None:
+    field = Article._meta.get_field("named_id")
+    monkeypatch.setattr(field, "max_length", 8)
+    articles = [
+        Article.objects.create(title="abcdefghijk", category=str(index), content="x")
+        for index in range(12)
+    ]
+    values = [article.named_id for article in articles]
+    assert values[0] == "abcdefgh"
+    assert values[1] == "abcdef-1"
+    assert values[-1] == "abcde-11"
+    assert len(set(values)) == 12
+    assert all(len(value) <= 8 for value in values)
+
+    articles[-1].save()
+    articles[-1].refresh_from_db()
+    assert articles[-1].named_id == values[-1]
+
+
+@pytest.mark.django_db
+def test_long_collision_without_separator_remains_stable(monkeypatch) -> None:
+    field = Article._meta.get_field("named_id")
+    monkeypatch.setattr(field, "max_length", 8)
+    monkeypatch.setattr(field, "separator", "")
+    monkeypatch.setattr(
+        field,
+        "_generator",
+        lambda instance, fields, separator: instance.title,
+    )
+    Article.objects.create(title="abcdefghijk", category="a", content="x")
+    duplicate = Article.objects.create(title="abcdefghijk", category="b", content="x")
+
+    assert duplicate.named_id == "abcdefg1"
+    duplicate.save()
+    assert duplicate.named_id == "abcdefg1"
+
+
+@pytest.mark.django_db
+def test_long_base_is_truncated_even_without_uniqueness_check() -> None:
+    field = NamedIDField(source_fields=["name"], max_length=4, unique=False)
+    field.set_attributes_from_name("named_id")
+    assert field.pre_save(SimpleNamespace(name="long name"), add=True) == "long"
+
+
+@pytest.mark.django_db
+def test_truncated_suffixes_do_not_collide_across_different_bases(monkeypatch) -> None:
+    field = Article._meta.get_field("named_id")
+    monkeypatch.setattr(field, "max_length", 8)
+    Article.objects.create(title="abcdefgh", category="a", content="x")
+    Article.objects.create(title="abcdefgz", category="b", content="x")
+    first = Article.objects.create(title="abcdefgh", category="c", content="x")
+    second = Article.objects.create(title="abcdefgz", category="d", content="x")
+
+    assert first.named_id == "abcdef-1"
+    assert second.named_id == "abcdef-2"
 
 
 @pytest.mark.django_db

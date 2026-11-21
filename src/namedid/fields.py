@@ -90,6 +90,9 @@ class NamedIDField(models.CharField):
                 % {"fields": self.source_fields}
             )
 
+        if self.max_length is not None:
+            base_value = base_value[: self.max_length]
+
         if self._unique_scope is None and not self.unique:
             return base_value
 
@@ -126,13 +129,22 @@ class NamedIDField(models.CharField):
 
     def _is_stored_variant(self, value: str, base: str) -> bool:
         """True when ``value`` is ``base`` or ``base<sep><counter>``."""
-        if value == base:
+        if value == (base[: self.max_length] if self.max_length else base):
             return True
-        prefix = f"{base}{self.separator}"
-        if not value.startswith(prefix):
+        if not self.separator:
+            for length in range(1, len(value)):
+                suffix = value[-length:]
+                remaining = self.max_length - length if self.max_length else None
+                if suffix.isdecimal() and value[:-length] == base[:remaining]:
+                    return True
             return False
-        suffix = value[len(prefix) :]
-        return suffix.isdecimal()
+        prefix, separator, counter = value.rpartition(self.separator)
+        if not separator or not counter.isdecimal():
+            return False
+        suffix = f"{separator}{counter}"
+        if self.max_length is not None:
+            base = base[: self.max_length - len(suffix)]
+        return prefix == base
 
     def _find_free_value(self, model_instance: Any, base_value: str) -> str:
         """Return ``base_value`` or ``base_value<sep>N`` such that no row collides.
@@ -145,21 +157,31 @@ class NamedIDField(models.CharField):
         model_class = model_instance.__class__
         prefix = f"{base_value}{self.separator}"
 
-        query = model_class.objects.filter(
-            Q(**{field_name: base_value}) | Q(**{f"{field_name}__startswith": prefix})
-        )
-        query = self._scope_filter(model_instance, query)
+        query = self._scope_filter(model_instance, model_class.objects.all())
         if model_instance.pk:
             query = query.exclude(pk=model_instance.pk)
 
-        taken = set(query.values_list(field_name, flat=True))
+        taken = set(
+            query.filter(
+                Q(**{field_name: base_value}) | Q(**{f"{field_name}__startswith": prefix})
+            ).values_list(field_name, flat=True)
+        )
         if base_value not in taken:
             return base_value
 
         counter = 1
         while True:
-            candidate = f"{prefix}{counter}"
-            if candidate not in taken:
+            suffix = f"{self.separator}{counter}"
+            if self.max_length is not None:
+                available = self.max_length - len(suffix)
+                if available < 1:
+                    raise ValueError("No space left for a unique named ID suffix.")
+                candidate = f"{base_value[:available]}{suffix}"
+            else:
+                candidate = f"{base_value}{suffix}"
+            if candidate not in taken and (
+                candidate.startswith(prefix) or not query.filter(**{field_name: candidate}).exists()
+            ):
                 return candidate
             counter += 1
 

@@ -71,6 +71,7 @@ class Article(models.Model):
 
 - **Automatic generation**: Values are generated automatically before saving
 - **Collision handling**: Automatically appends numeric suffix if value exists (e.g., `name-1-2023`, `name-1-2023-1`, `name-1-2023-2`)
+- **Length**: Truncates generated values to `max_length`, leaving room for a collision suffix.
 - **Type formatting**: Automatically formats dates, numbers, booleans
 - **Unique and required**: Fields are always unique and cannot be empty
 - **Read-only**: Fields are automatically set to read-only
