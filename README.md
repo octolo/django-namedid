@@ -97,6 +97,12 @@ and severity), runtime dependency advisories, and package builds.
 
 MIT
 
+## CI packaging check
+
+CI also installs the built wheel(s) in a clean environment and checks their
+dependencies and imports without publishing. This installation check is
+non-blocking during the initial rollout.
+
 ## Local audit
 
 Install the project's development/test dependencies (including both local
