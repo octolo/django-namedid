@@ -85,6 +85,9 @@ class Article(models.Model):
 
 ## Development
 
+CI checks the Python/Django test matrix, Ruff, Bandit (medium/high confidence
+and severity), runtime dependency advisories, and package builds.
+
 ```bash
 ./service.py dev install-dev
 ./service.py dev test
@@ -93,3 +96,21 @@ class Article(models.Model):
 ## License
 
 MIT
+
+## Local audit
+
+Install the project's development/test dependencies (including both local
+packages where applicable), plus the audit tools:
+
+```bash
+python -m pip install ruff mypy bandit pip-audit vulture radon xenon pytest pytest-django pytest-cov build twine
+make audit
+```
+
+Use the activated environment's Python, or pass `make audit PYTHON=/path/to/python`.
+On systems without Make, run `python scripts/audit.py` directly. Git is required;
+the geoaddress widget tests also require Node.js. The audit reports missing test
+suites and runs all available checks even when earlier checks fail.
+Xenon checks the absolute C, module B, and average A complexity thresholds. Existing
+lint, typing, security, dependency, or test findings can make the audit fail.
+CI also runs this audit as a non-blocking job and separately reports Radon maintainability without imposing a threshold.
